@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0a0812] text-slate-100 antialiased selection:bg-purple-600/30 selection:text-purple-100 font-sans transition-colors duration-200;
+    background-image: 
+      radial-gradient(rgba(147, 51, 234, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(10, 8, 18, 0.95), rgba(10, 8, 18, 0.98));
+    background-size: 24px 24px, 100% 100%;
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  html:not(.dark) body {
+    @apply bg-[#f8fafc] text-slate-900 selection:bg-purple-200 selection:text-purple-900;
+    background-image: 
+      radial-gradient(rgba(147, 51, 234, 0.08) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(248, 250, 252, 0.96), rgba(248, 250, 252, 0.99));
+    background-size: 24px 24px, 100% 100%;
+  }
+}
+
+@layer components {
+  /* White Button with Dark Purple Text */
+  .btn-white {
+    @apply bg-white hover:bg-slate-100 text-[#19062d] font-bold px-5 py-2.5 rounded-xl transition-all duration-200 active:scale-[0.98] border border-white/90 inline-flex items-center justify-center gap-2;
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.25), 0 2px 4px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Dark Purple Button with White Text */
+  .btn-dark-purple {
+    @apply bg-[#21093b] hover:bg-[#320f59] text-white font-semibold px-5 py-2.5 rounded-xl border border-purple-600/50 hover:border-purple-400/80 transition-all duration-200 active:scale-[0.98] inline-flex items-center justify-center gap-2;
+    box-shadow: 0 4px 20px rgba(59, 18, 107, 0.5), 0 0 12px rgba(168, 85, 247, 0.3);
+  }
+
+  /* Ghost/Outline Purple Button */
+  .btn-purple-ghost {
+    @apply bg-purple-100 hover:bg-purple-200 text-purple-900 dark:bg-purple-950/30 dark:hover:bg-purple-900/50 dark:text-purple-200 dark:hover:text-white border border-purple-300 dark:border-purple-800/60 hover:border-purple-400 dark:hover:border-purple-600/80 px-4 py-2 rounded-xl transition-all duration-200 active:scale-[0.98] inline-flex items-center justify-center gap-2;
+  }
+
+  /* Glass Card */
+  .card-glass {
+    @apply bg-white/90 dark:bg-[#110821]/80 backdrop-blur-md border border-slate-200 dark:border-purple-900/40 hover:border-purple-300 dark:hover:border-purple-700/60 transition-all duration-300 rounded-2xl shadow-sm dark:shadow-[0_10px_30px_-10px_rgba(14,7,26,0.8)];
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0b1120;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+@keyframes rollMotion {
+  0% {
+    transform: translateX(-50px) rotate(0deg);
+  }
+  50% {
+    transform: translateX(50px) rotate(360deg);
+  }
+  100% {
+    transform: translateX(-50px) rotate(720deg);
+  }
+}
+
+.animate-rolling-logo {
+  animation: rollMotion 1.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+@keyframes floatGentle {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: floatGentle 3s ease-in-out infinite;
+}

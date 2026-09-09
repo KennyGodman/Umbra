@@ -1,0 +1,30 @@
+{
+  "contract_address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+  "network_rpc": "https://testnet.genlayer.com",
+  "deployed_at": 1788632451,
+  "underwriter": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "seed_policies": [
+    {
+      "policy_id": 1,
+      "peril_type": "weather",
+      "trigger_description": "Accumulated rainfall < 10mm in Lagos, Nigeria during observation window",
+      "data_source_hint": "https://archive-api.open-meteo.com/v1/era5?latitude=6.5244&longitude=3.3792&daily=precipitation_sum",
+      "premium": 35,
+      "payout": 500,
+      "coverage_start": 1788632481,
+      "coverage_end": 1788632601,
+      "status": "open"
+    },
+    {
+      "policy_id": 2,
+      "peril_type": "flight_delay",
+      "trigger_description": "Delta flight DL123 arrival delay exceeds 120 minutes",
+      "data_source_hint": "https://flightaware.com/live/flight/DAL123",
+      "premium": 50,
+      "payout": 800,
+      "coverage_start": 1788632496,
+      "coverage_end": 1788632661,
+      "status": "open"
+    }
+  ]
+}
