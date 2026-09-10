@@ -38,8 +38,12 @@ export default function App() {
     localStorage.setItem("umbra_theme", theme);
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  const toggleTheme = (targetTheme) => {
+    if (typeof targetTheme === "string" && (targetTheme === "light" || targetTheme === "dark")) {
+      setTheme(targetTheme);
+    } else {
+      setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    }
   };
 
   // Load policies from service on mount
@@ -110,7 +114,11 @@ export default function App() {
 
       {/* Landing Page or DApp View */}
       {!inDapp ? (
-        <LandingPage onLaunchDapp={handleLaunchDapp} />
+        <LandingPage
+          onLaunchDapp={handleLaunchDapp}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
       ) : (
         <>
           {/* Main Navigation */}

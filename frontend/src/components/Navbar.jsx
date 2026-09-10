@@ -81,22 +81,42 @@ export default function Navbar({
 
           {/* Wallet & Quick Controls */}
           <div className="flex items-center space-x-3">
-            {/* Theme Toggle Button (Light / Dark Mode) */}
+            {/* Theme Selector (Segmented Light / Dark Mode) */}
             {onToggleTheme && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={onToggleTheme}
-                title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                aria-label="Toggle light and dark mode"
-                className="p-2 text-slate-600 dark:text-purple-300/80 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-950/60 rounded-xl transition-colors border border-slate-200 dark:border-purple-900/60"
+              <div 
+                className="flex items-center p-0.5 bg-slate-100 dark:bg-purple-950/70 rounded-xl border border-slate-200 dark:border-purple-800/60 shadow-inner"
+                role="radiogroup"
+                aria-label="Color scheme selector"
               >
-                {theme === "dark" ? (
-                  <Sun className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <Moon className="w-4 h-4 text-slate-700" />
-                )}
-              </motion.button>
+                <button
+                  type="button"
+                  onClick={() => onToggleTheme("light")}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all ${
+                    theme === "light"
+                      ? "bg-white text-purple-900 shadow-sm font-semibold border border-slate-200/80"
+                      : "text-slate-500 hover:text-slate-900 dark:text-purple-300/70 dark:hover:text-white font-medium"
+                  }`}
+                  title="Switch to Light Mode"
+                  aria-checked={theme === "light"}
+                >
+                  <Sun className={`w-3.5 h-3.5 ${theme === "light" ? "text-amber-500 fill-amber-500/20" : ""}`} />
+                  <span className="hidden sm:inline">Light</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleTheme("dark")}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all ${
+                    theme === "dark"
+                      ? "bg-purple-900 text-white shadow-sm font-semibold border border-purple-700/80"
+                      : "text-slate-500 hover:text-slate-900 dark:text-purple-300/70 dark:hover:text-white font-medium"
+                  }`}
+                  title="Switch to Dark Mode"
+                  aria-checked={theme === "dark"}
+                >
+                  <Moon className={`w-3.5 h-3.5 ${theme === "dark" ? "text-purple-300 fill-purple-300/20" : ""}`} />
+                  <span className="hidden sm:inline">Dark</span>
+                </button>
+              </div>
             )}
 
             {/* Reset Seed Demo Data */}
