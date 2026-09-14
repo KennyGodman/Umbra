@@ -40,7 +40,15 @@ export default {
         'btn-purple': '0 4px 20px rgba(59, 18, 107, 0.5), 0 0 12px rgba(168, 85, 247, 0.3)'
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: [
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          'Arial',
+          'sans-serif',
+        ],
       },
       animation: {
         'roll': 'roll 1.5s ease-in-out infinite',
