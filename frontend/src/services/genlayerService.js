@@ -1,40 +1,59 @@
-import { INITIAL_POLICIES } from "../data/initialPolicies";
+/**
+ * UMBRA Protocol - Real GenLayer Client Service
+ * 
+ * Direct on-chain communication with the ParametricGuard Intelligent Contract
+ * on GenLayer Studionet via genlayer-js.
+ */
 
-const STORAGE_KEY = "parametric_guard_policies_v1";
+import { createClient, createAccount } from "genlayer-js";
+import { studionet } from "genlayer-js/chains";
+import deploymentData from "../contracts/deployments.json";
+
+// Known deterministic persona accounts for live demo
+const PERSONA_KEYS = {
+  // Buyer (Alex)
+  "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc": "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+  // Underwriter (Parametric Capital)
+  "0x70997970c51812dc3a010c7d01b50e0d17dc79c8": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+};
+
+const DEFAULT_BUYER = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
 
 class GenLayerService {
   constructor() {
-    this.policies = this._loadPolicies();
-    this.connectedAccount = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"; // default buyer account
-    this.networkName = "GenLayer Testnet (Simulated Direct Mode)";
-    this.rpcUrl = "https://testnet.genlayer.com";
-    this.contractAddress = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+    this.contractAddress = deploymentData.contract_address || "0x6285B185277F10BeA8fa2c5b802B484a9E492eb8";
+    this.networkName = deploymentData.network || "GenLayer Studionet";
+    this.rpcUrl = deploymentData.network_rpc || studionet.rpcUrls.default.http[0];
+    this.chainId = deploymentData.chain_id || studionet.id;
+    this.isRealClient = true;
+
+    this.connectedAccount = DEFAULT_BUYER;
+    this.client = this._createClientForAccount(this.connectedAccount);
+
+    this.cachedPolicies = Array.isArray(deploymentData.seed_policies) ? [...deploymentData.seed_policies] : [];
   }
 
-  _loadPolicies() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.warn("Could not load from localStorage:", e);
-    }
-    return [...INITIAL_POLICIES];
+  _createClientForAccount(address) {
+    const normalized = (address || "").toLowerCase();
+    const privKey = PERSONA_KEYS[normalized];
+    const account = privKey ? createAccount(privKey) : createAccount();
+
+    return createClient({
+      chain: studionet,
+      account: account
+    });
   }
 
-  _savePolicies() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.policies));
-    } catch (e) {
-      console.warn("Could not save to localStorage:", e);
-    }
+  getContractAddress() {
+    return this.contractAddress;
   }
 
-  resetDemoData() {
-    this.policies = [...INITIAL_POLICIES];
-    this._savePolicies();
-    return this.policies;
+  getNetworkName() {
+    return this.networkName;
+  }
+
+  getRpcUrl() {
+    return this.rpcUrl;
   }
 
   getConnectedAccount() {
@@ -43,33 +62,140 @@ class GenLayerService {
 
   setConnectedAccount(account) {
     this.connectedAccount = account;
+    this.client = this._createClientForAccount(account);
   }
 
-  async listOpenPolicies() {
-    // Contract view: list_open_policies
-    return this.policies.filter((p) => p.status === "open");
-  }
-
+  /**
+   * Reads all policies directly from the ParametricGuard contract on GenLayer
+   */
   async getAllPolicies() {
-    return [...this.policies];
+    try {
+      const raw = await this.client.readContract({
+        address: this.contractAddress,
+        functionName: "get_all_policies",
+        args: []
+      });
+
+      if (raw) {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.cachedPolicies = parsed;
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.warn("[GenLayer Client] Error reading get_all_policies on-chain, falling back to cached/seed:", err);
+    }
+
+    return [...this.cachedPolicies];
   }
 
+  /**
+   * Reads open policies directly from contract view
+   */
+  async listOpenPolicies() {
+    try {
+      const raw = await this.client.readContract({
+        address: this.contractAddress,
+        functionName: "list_open_policies",
+        args: []
+      });
+
+      if (raw) {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.warn("[GenLayer Client] Error reading list_open_policies on-chain:", err);
+    }
+
+    const all = await this.getAllPolicies();
+    return all.filter((p) => p.status === "open");
+  }
+
+  /**
+   * Reads a single policy directly from the contract
+   */
   async getPolicy(policyId) {
-    const p = this.policies.find((item) => Number(item.policy_id) === Number(policyId));
-    if (!p) throw new Error(`Policy #${policyId} not found`);
-    return p;
+    try {
+      const raw = await this.client.readContract({
+        address: this.contractAddress,
+        functionName: "get_policy",
+        args: [Number(policyId)]
+      });
+
+      if (raw) {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (parsed && parsed.policy_id) {
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.warn(`[GenLayer Client] Error reading get_policy(#${policyId}) on-chain:`, err);
+    }
+
+    const found = this.cachedPolicies.find((p) => Number(p.policy_id) === Number(policyId));
+    if (found) return found;
+    throw new Error(`Policy #${policyId} not found`);
   }
 
+  /**
+   * Reads policies purchased by a specific buyer
+   */
   async listPoliciesByBuyer(buyerAddress) {
-    const addr = (buyerAddress || this.connectedAccount || "").toLowerCase();
-    return this.policies.filter((p) => (p.buyer || "").toLowerCase() === addr);
+    const targetAddr = (buyerAddress || this.connectedAccount || "").toLowerCase();
+    try {
+      const raw = await this.client.readContract({
+        address: this.contractAddress,
+        functionName: "list_policies_by_buyer",
+        args: [targetAddr]
+      });
+
+      if (raw) {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.warn("[GenLayer Client] Error reading list_policies_by_buyer on-chain:", err);
+    }
+
+    const all = await this.getAllPolicies();
+    return all.filter((p) => (p.buyer || "").toLowerCase() === targetAddr);
   }
 
+  /**
+   * Reads policies created by a specific underwriter
+   */
   async listPoliciesByUnderwriter(underwriterAddress) {
-    const addr = (underwriterAddress || this.connectedAccount || "").toLowerCase();
-    return this.policies.filter((p) => (p.underwriter || "").toLowerCase() === addr);
+    const targetAddr = (underwriterAddress || this.connectedAccount || "").toLowerCase();
+    try {
+      const raw = await this.client.readContract({
+        address: this.contractAddress,
+        functionName: "list_policies_by_underwriter",
+        args: [targetAddr]
+      });
+
+      if (raw) {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.warn("[GenLayer Client] Error reading list_policies_by_underwriter on-chain:", err);
+    }
+
+    const all = await this.getAllPolicies();
+    return all.filter((p) => (p.underwriter || "").toLowerCase() === targetAddr);
   }
 
+  /**
+   * Real on-chain write: create_policy
+   */
   async createPolicy({
     peril_type,
     trigger_description,
@@ -79,122 +205,144 @@ class GenLayerService {
     coverage_start,
     coverage_end,
   }) {
-    // Simulates create_policy transaction on GenLayer
-    await new Promise((r) => setTimeout(r, 600));
+    console.log(`[GenLayer Client] Sending create_policy transaction to ${this.contractAddress}...`);
 
-    const nextId = this.policies.length > 0 
-      ? Math.max(...this.policies.map((p) => Number(p.policy_id))) + 1 
-      : 1;
+    const tx = await this.client.writeContract({
+      address: this.contractAddress,
+      functionName: "create_policy",
+      args: [
+        String(peril_type),
+        String(trigger_description),
+        String(data_source_hint),
+        Number(premium),
+        Number(payout),
+        Number(coverage_start),
+        Number(coverage_end)
+      ],
+      value: 0n
+    });
 
-    const newPolicy = {
-      policy_id: nextId,
-      underwriter: this.connectedAccount,
-      buyer: null,
-      peril_type,
-      trigger_description,
-      data_source_hint,
-      premium: Number(premium),
-      payout: Number(payout),
-      coverage_start: Number(coverage_start),
-      coverage_end: Number(coverage_end),
-      status: "open",
-      resolution_justification: null,
-    };
+    console.log(`[GenLayer Client] create_policy tx submitted: ${tx}. Awaiting confirmation...`);
+    const receipt = await this.client.waitForTransactionReceipt({
+      hash: tx,
+      status: "ACCEPTED",
+      retries: 45,
+      interval: 2000
+    });
 
-    this.policies.unshift(newPolicy);
-    this._savePolicies();
-    return newPolicy;
+    console.log(`[GenLayer Client] Policy created on-chain. Status: ${receipt.status_name || "ACCEPTED"}`);
+
+    const refreshed = await this.getAllPolicies();
+    return refreshed[refreshed.length - 1];
   }
 
+  /**
+   * Real on-chain write: buy_policy
+   */
   async buyPolicy(policyId) {
-    // Simulates buy_policy transaction on GenLayer
-    await new Promise((r) => setTimeout(r, 700));
+    console.log(`[GenLayer Client] Sending buy_policy(#${policyId}) transaction to ${this.contractAddress}...`);
 
-    const policy = this.policies.find((p) => Number(p.policy_id) === Number(policyId));
-    if (!policy) throw new Error("Policy not found");
-    if (policy.status !== "open") throw new Error(`Policy status is '${policy.status}', not open`);
+    const tx = await this.client.writeContract({
+      address: this.contractAddress,
+      functionName: "buy_policy",
+      args: [Number(policyId)],
+      value: 0n
+    });
 
-    policy.buyer = this.connectedAccount;
-    policy.status = "purchased";
-    this._savePolicies();
-    return policy;
+    console.log(`[GenLayer Client] buy_policy tx submitted: ${tx}. Awaiting confirmation...`);
+    const receipt = await this.client.waitForTransactionReceipt({
+      hash: tx,
+      status: "ACCEPTED",
+      retries: 45,
+      interval: 2000
+    });
+
+    console.log(`[GenLayer Client] Policy #${policyId} purchased on-chain. Status: ${receipt.status_name || "ACCEPTED"}`);
+
+    return await this.getPolicy(policyId);
   }
 
+  /**
+   * Real on-chain write: resolve_policy
+   * Triggers non-deterministic validator telemetry fetch and LLM equivalence consensus
+   */
   async resolvePolicy(policyId, onProgress = () => {}) {
-    // Simulates the full validator consensus lifecycle with progress callbacks
-    const policy = this.policies.find((p) => Number(p.policy_id) === Number(policyId));
-    if (!policy) throw new Error("Policy not found");
-    if (policy.status !== "purchased") throw new Error("Policy is not in purchased state");
+    console.log(`[GenLayer Client] Initiating resolve_policy(#${policyId}) on GenLayer...`);
 
     onProgress({
       step: 1,
       title: "Decentralized Validator Allocation",
-      desc: "Assigning 5 independent GenLayer validator nodes for non-deterministic execution..."
+      desc: "Assigning independent GenLayer validator nodes for non-deterministic execution..."
     });
-    await new Promise((r) => setTimeout(r, 900));
+
+    const tx = await this.client.writeContract({
+      address: this.contractAddress,
+      functionName: "resolve_policy",
+      args: [Number(policyId)],
+      value: 0n
+    });
+
+    console.log(`[GenLayer Client] resolve_policy tx submitted: ${tx}. Monitoring validator consensus...`);
 
     onProgress({
       step: 2,
-      title: "Real-World Data Ingestion",
-      desc: `Fetching external data from: ${policy.data_source_hint.slice(0, 60)}...`
+      title: "Real-World Ingestion & Verification Prompts",
+      desc: "Validators fetching live API telemetry and executing LLM verification prompts..."
     });
-    await new Promise((r) => setTimeout(r, 1100));
+
+    // Wait for the consensus receipt
+    const receipt = await this.client.waitForTransactionReceipt({
+      hash: tx,
+      status: "ACCEPTED",
+      retries: 60,
+      interval: 2500
+    });
+
+    console.log(`[GenLayer Client] Consensus reached! Validator votes:`, receipt.last_round?.validator_votes_name);
 
     onProgress({
       step: 3,
-      title: "Equivalence Principle (prompt_non_comparative)",
-      desc: "Validators evaluating condition against observations and reaching semantic consensus..."
-    });
-    await new Promise((r) => setTimeout(r, 1200));
-
-    // Determine realistic outcome based on trigger description & peril
-    let triggered = true;
-    let justification = "";
-
-    const descLower = policy.trigger_description.toLowerCase();
-
-    if (policy.peril_type === "flight_delay") {
-      // If contains DL123 delay > 120m, let's trigger or not trigger depending on scenario
-      if (descLower.includes("exceeds 120 minutes") || descLower.includes("> 120")) {
-        triggered = false; // prove "not triggered" outcome
-        justification = `Validators queried FlightAware telemetry for flight ${descLower.includes("dl123") ? "DL123" : "flight"}. Logs confirmed flight arrived with a 15-minute delay. The > 120 min threshold was not satisfied. Full collateral (${policy.payout} GEN) + premium (${policy.premium} GEN) transferred back to underwriter.`;
-      } else {
-        triggered = true;
-        justification = `Validators cross-referenced air traffic logs confirming a 138-minute tarmac and ground delay exceeding the threshold. Triggered: Payout of ${policy.payout} GEN released automatically to buyer.`;
-      }
-    } else {
-      // Weather peril
-      triggered = true;
-      justification = `Validators reached consensus via gl.eq_principle.prompt_non_comparative. Satellite ERA5 weather telemetry confirmed rainfall of 6.4mm, which satisfies the '< 10mm' drought trigger threshold. Payout of ${policy.payout} GEN executed directly to buyer.`;
-    }
-
-    onProgress({
-      step: 4,
       title: "Consensus Finalized & On-Chain Settlement",
-      desc: `Consensus outcome: ${triggered ? "TRIGGERED (Payout)" : "NOT TRIGGERED (Collateral Returned)"}. Writing justification on-chain...`
+      desc: "Consensus achieved via gl.eq_principle.prompt_non_comparative. On-chain settlement complete."
     });
-    await new Promise((r) => setTimeout(r, 700));
 
-    policy.status = triggered ? "resolved_triggered" : "resolved_not_triggered";
-    policy.resolution_justification = justification;
-    this._savePolicies();
+    // Fetch the updated policy directly from the contract state
+    const resolvedPolicy = await this.getPolicy(policyId);
+    const triggered = resolvedPolicy.status === "resolved_triggered";
 
     return {
       triggered,
-      justification,
-      policy
+      justification: resolvedPolicy.resolution_justification || "Trigger evaluated by GenLayer validators.",
+      policy: resolvedPolicy
     };
   }
 
+  /**
+   * Real on-chain write: expire_unsold_policy
+   */
   async expireUnsoldPolicy(policyId) {
-    await new Promise((r) => setTimeout(r, 500));
-    const policy = this.policies.find((p) => Number(p.policy_id) === Number(policyId));
-    if (!policy) throw new Error("Policy not found");
-    if (policy.status !== "open") throw new Error("Only open policies can be expired");
+    console.log(`[GenLayer Client] Sending expire_unsold_policy(#${policyId}) to ${this.contractAddress}...`);
 
-    policy.status = "expired";
-    this._savePolicies();
-    return policy;
+    const tx = await this.client.writeContract({
+      address: this.contractAddress,
+      functionName: "expire_unsold_policy",
+      args: [Number(policyId)],
+      value: 0n
+    });
+
+    await this.client.waitForTransactionReceipt({
+      hash: tx,
+      status: "ACCEPTED",
+      retries: 45,
+      interval: 2000
+    });
+
+    return await this.getPolicy(policyId);
+  }
+
+  resetDemoData() {
+    this.cachedPolicies = Array.isArray(deploymentData.seed_policies) ? [...deploymentData.seed_policies] : [];
+    return this.cachedPolicies;
   }
 }
 

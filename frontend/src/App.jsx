@@ -213,15 +213,15 @@ export default function App() {
           <footer className="border-t border-slate-200 dark:border-purple-900/40 py-6 text-center text-xs text-slate-500 dark:text-purple-300/60 bg-white/60 dark:bg-[#090414]/60 backdrop-blur-md transition-colors duration-200">
             <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse shadow-[0_0_8px_rgba(192,132,252,0.8)]" />
-                <span>UMBRA Protocol Intelligent Contract: <code className="font-mono text-purple-700 dark:text-purple-300">0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0</code></span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                <span>UMBRA Intelligent Contract: <code className="font-mono text-purple-700 dark:text-purple-300 font-semibold">{genlayerService.getContractAddress()}</code></span>
               </div>
               <div className="flex items-center gap-4 text-slate-600 dark:text-purple-300/80">
                 <button onClick={() => setInDapp(false)} className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   Landing Page
                 </button>
                 <span>•</span>
-                <span className="font-mono">GenLayer Testnet</span>
+                <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">● {genlayerService.getNetworkName()}</span>
               </div>
             </div>
           </footer>

@@ -1,0 +1,23 @@
+{
+  "name": "umbra-protocol",
+  "version": "1.0.0",
+  "description": "Autonomous Parametric Insurance on GenLayer with AI Consensus",
+  "scripts": {
+    "deploy": "node scripts/deploy.cjs",
+    "test:contract": "node scripts/test_schema.cjs",
+    "test:lifecycle": "node scripts/test_deploy.cjs",
+    "test:python": "pytest",
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview"
+  },
+  "keywords": [
+    "genlayer",
+    "insurance",
+    "parametric",
+    "smart-contracts",
+    "ai-consensus"
+  ],
+  "author": "UMBRA Protocol Team",
+  "license": "MIT"
+}

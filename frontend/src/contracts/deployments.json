@@ -1,0 +1,38 @@
+{
+  "contract_address": "0x6285B185277F10BeA8fa2c5b802B484a9E492eb8",
+  "network": "GenLayer Studionet",
+  "chain_id": 61999,
+  "network_rpc": "https://studio.genlayer.com/api",
+  "deployed_at": 1791363836,
+  "underwriter": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "seed_policies": [
+    {
+      "policy_id": 1,
+      "underwriter": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "buyer": null,
+      "peril_type": "weather",
+      "trigger_description": "Accumulated rainfall < 10mm in Lagos, Nigeria during observation window",
+      "data_source_hint": "https://archive-api.open-meteo.com/v1/era5?latitude=6.5244&longitude=3.3792&daily=precipitation_sum",
+      "premium": 35,
+      "payout": 500,
+      "coverage_start": 1791363846,
+      "coverage_end": 1791364736,
+      "status": "open",
+      "resolution_justification": null
+    },
+    {
+      "policy_id": 2,
+      "underwriter": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "buyer": null,
+      "peril_type": "flight_delay",
+      "trigger_description": "Delta flight DL123 arrival delay exceeds 120 minutes",
+      "data_source_hint": "https://flightaware.com/live/flight/DAL123",
+      "premium": 50,
+      "payout": 800,
+      "coverage_start": 1791363851,
+      "coverage_end": 1791364796,
+      "status": "open",
+      "resolution_justification": null
+    }
+  ]
+}
