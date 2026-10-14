@@ -239,8 +239,8 @@ class ParametricGuard(getattr(gl, "Contract", object)):
             raise gl.vm.UserError(f"Policy {pid} does not exist")
 
         policy = json.loads(raw_policy)
-        if policy.get("status") != "purchased":
-            raise gl.vm.UserError(f"Policy cannot be resolved: status is '{policy.get('status')}', expected 'purchased'")
+        if policy.get("status") not in ("purchased", "resolution_inconclusive"):
+            raise gl.vm.UserError(f"Policy cannot be resolved: status is '{policy.get('status')}', expected 'purchased' or 'resolution_inconclusive'")
 
         now = self._get_current_timestamp()
         if now < int(policy.get("coverage_end", 0)):
@@ -257,53 +257,90 @@ class ParametricGuard(getattr(gl, "Contract", object)):
         )
 
         def validator_evaluation() -> str:
-            web_content = ""
-            if isolated_hint.startswith("http://") or isolated_hint.startswith("https://"):
+            # --- Source evidence fetch ---
+            web_content = None
+            hint_str = (isolated_hint or "").strip()
+
+            url_to_fetch = None
+            if hint_str.startswith("http://") or hint_str.startswith("https://"):
+                url_to_fetch = hint_str
+            elif "." in hint_str and " " not in hint_str and not hint_str.startswith("{"):
+                url_to_fetch = f"https://{hint_str}"
+
+            if url_to_fetch:
                 try:
-                    resp = gl.nondet.web.get(isolated_hint)
-                    if hasattr(resp, "body"):
-                        if isinstance(resp.body, bytes):
-                            web_content = resp.body.decode("utf-8", errors="replace")[:2000]
+                    resp = gl.nondet.web.get(url_to_fetch)
+                    if resp is not None:
+                        if hasattr(resp, "body"):
+                            if isinstance(resp.body, bytes):
+                                raw_text = resp.body.decode("utf-8", errors="replace")[:2000]
+                            else:
+                                raw_text = str(resp.body)[:2000]
                         else:
-                            web_content = str(resp.body)[:2000]
-                    else:
-                        web_content = str(resp)[:2000]
+                            raw_text = str(resp)[:2000]
+
+                        clean_text = raw_text.strip()
+                        if clean_text and len(clean_text) >= 10:
+                            lower_text = clean_text.lower()
+                            if not any(err in lower_text for err in ["404 not found", "502 bad gateway", "503 service unavailable", "500 internal server error", '"error": true']):
+                                web_content = clean_text
                 except Exception:
-                    web_content = f"Observation records query for hint '{isolated_hint}'."
-            else:
-                web_content = f"Observation records query for hint '{isolated_hint}'."
+                    web_content = None
+
+            # Safeguard: if source evidence is unavailable or could not be obtained,
+            # resolution MUST be inconclusive – unavailable source evidence cannot produce a conclusive result.
+            if web_content is None:
+                return json.dumps({
+                    "triggered": None,
+                    "justification": f"SOURCE_UNAVAILABLE: could not obtain valid source evidence from hint '{isolated_hint}'."
+                })
+
+            effective_web_content = web_content
 
             evaluation_instruction = (
                 f"{formatted_prompt}\n\n"
                 f"--- REAL-WORLD DATA EVIDENCE ---\n"
-                f"{web_content}\n"
+                f"{effective_web_content}\n"
                 f"--------------------------------\n\n"
+                "Determine if the condition has been met based strictly on the real-world data evidence above.\n"
+                "If the evidence is unavailable, missing, or insufficient to reach a conclusive determination, you MUST set 'triggered' to null.\n"
                 "Respond in valid JSON with exactly two fields:\n"
                 "{\n"
-                '  "triggered": true or false,\n'
+                '  "triggered": true, false, or null,\n'
                 '  "justification": "One-paragraph justification citing specific data values, sources, and dates."\n'
                 "}"
             )
 
+            # --- Model evidence fetch ---
             raw_response = ""
             if hasattr(gl.nondet, "llm") and hasattr(gl.nondet.llm, "prompt") and callable(gl.nondet.llm.prompt):
                 try:
                     raw_response = gl.nondet.llm.prompt(evaluation_instruction)
                 except Exception:
-                    pass
+                    raw_response = ""
 
             if not raw_response and hasattr(gl.nondet, "exec_prompt") and callable(gl.nondet.exec_prompt):
                 try:
                     raw_response = gl.nondet.exec_prompt(evaluation_instruction)
                 except Exception:
-                    pass
+                    raw_response = ""
 
-            if not raw_response:
-                raw_response = '{"triggered": true, "justification": "Condition evaluated and verified by validators based on fetched telemetry."}'
+            # Safeguard: if no model response could be obtained, resolution is inconclusive.
+            if not raw_response or not str(raw_response).strip():
+                return json.dumps({
+                    "triggered": None,
+                    "justification": "MODEL_UNAVAILABLE: no LLM response could be obtained for this evaluation."
+                })
 
             if isinstance(raw_response, dict):
+                triggered_val = raw_response.get("triggered")
+                if not isinstance(triggered_val, bool):
+                    return json.dumps({
+                        "triggered": None,
+                        "justification": f"MODEL_INCONCLUSIVE: {raw_response.get('justification', 'model could not produce a conclusive boolean verdict.')}"
+                    })
                 return json.dumps({
-                    "triggered": bool(raw_response.get("triggered", False)),
+                    "triggered": triggered_val,
                     "justification": str(raw_response.get("justification", "Trigger condition verified by validators."))
                 })
 
@@ -315,15 +352,21 @@ class ParametricGuard(getattr(gl, "Contract", object)):
                     clean_json = clean_json.split("```", 1)[1].split("```", 1)[0].strip()
 
                 parsed = json.loads(clean_json)
+                triggered_val = parsed.get("triggered")
+                if not isinstance(triggered_val, bool):
+                    return json.dumps({
+                        "triggered": None,
+                        "justification": f"MODEL_INCONCLUSIVE: {parsed.get('justification', 'model could not produce a conclusive boolean verdict.')}"
+                    })
                 return json.dumps({
-                    "triggered": bool(parsed.get("triggered", False)),
+                    "triggered": triggered_val,
                     "justification": str(parsed.get("justification", "Trigger condition verified by validators."))
                 })
             except Exception:
-                is_triggered = "true" in str(raw_response).lower() and "triggered" in str(raw_response).lower()
+                # Unparseable response – treat as inconclusive.
                 return json.dumps({
-                    "triggered": is_triggered,
-                    "justification": str(raw_response).strip()[:500] or "Condition evaluated by validators."
+                    "triggered": None,
+                    "justification": "MODEL_UNPARSEABLE: validator response could not be parsed as valid JSON."
                 })
 
         consensus_result_raw = gl.eq_principle.prompt_non_comparative(
@@ -334,27 +377,46 @@ class ParametricGuard(getattr(gl, "Contract", object)):
 
         try:
             consensus_data = json.loads(consensus_result_raw)
-            triggered = bool(consensus_data.get("triggered", False))
+            triggered = consensus_data.get("triggered")  # None or bool
             justification = str(consensus_data.get("justification", "Condition evaluated by validators."))
         except Exception:
-            triggered = "true" in str(consensus_result_raw).lower() and "triggered" in str(consensus_result_raw).lower()
+            triggered = None
             justification = str(consensus_result_raw)[:500] or "Condition evaluated by validators."
+
+        # Inconclusive: evidence was unavailable at the source or model level.
+        # Must NOT produce a conclusive result (status is set to resolution_inconclusive,
+        # never resolved_triggered or resolved_not_triggered, and no funds are transferred).
+        if not isinstance(triggered, bool):
+            policy["status"] = "resolution_inconclusive"
+            policy["resolution_justification"] = justification
+            self.policies[pid] = json.dumps(policy)
+            raise gl.vm.UserError(
+                f"Policy {pid} resolution inconclusive: {justification}"
+            )
 
         policy["resolution_justification"] = justification
 
         if triggered:
-            if policy.get("buyer"):
-                try:
-                    gl.transfer(Address(policy["buyer"]), int(policy.get("payout", 0)))
-                except Exception:
-                    pass
+            buyer_addr = policy.get("buyer")
+            payout_amount = int(policy.get("payout", 0))
+            if not buyer_addr:
+                raise gl.vm.UserError(f"Policy {pid} has no registered buyer for payout")
+            # State must only change if the transfer succeeds.
+            try:
+                gl.transfer(Address(buyer_addr), payout_amount)
+            except Exception as e:
+                raise gl.vm.UserError(f"Payout transfer of {payout_amount} to {buyer_addr} failed: {e}")
             policy["status"] = "resolved_triggered"
         else:
+            underwriter_addr = policy.get("underwriter")
             refund_amount = int(policy.get("payout", 0)) + int(policy.get("premium", 0))
+            if not underwriter_addr:
+                raise gl.vm.UserError(f"Policy {pid} has no registered underwriter for refund")
+            # State must only change if the transfer succeeds.
             try:
-                gl.transfer(Address(policy.get("underwriter")), refund_amount)
-            except Exception:
-                pass
+                gl.transfer(Address(underwriter_addr), refund_amount)
+            except Exception as e:
+                raise gl.vm.UserError(f"Refund transfer of {refund_amount} to {underwriter_addr} failed: {e}")
             policy["status"] = "resolved_not_triggered"
 
         self.policies[pid] = json.dumps(policy)
@@ -374,10 +436,17 @@ class ParametricGuard(getattr(gl, "Contract", object)):
         if now < int(policy.get("coverage_start", 0)):
             raise gl.vm.UserError(f"Coverage has not started yet (now: {now}, start: {policy.get('coverage_start')})")
 
+        underwriter_addr = policy.get("underwriter")
+        payout_amount = int(policy.get("payout", 0))
+        if not underwriter_addr:
+            raise gl.vm.UserError(f"Policy {pid} has no registered underwriter for collateral refund")
+
+        # State must only change if the collateral refund transfer succeeds.
         try:
-            gl.transfer(Address(policy.get("underwriter")), int(policy.get("payout", 0)))
-        except Exception:
-            pass
+            gl.transfer(Address(underwriter_addr), payout_amount)
+        except Exception as e:
+            raise gl.vm.UserError(f"Expiry collateral refund of {payout_amount} to {underwriter_addr} failed: {e}")
+
         policy["status"] = "expired"
         self.policies[pid] = json.dumps(policy)
 

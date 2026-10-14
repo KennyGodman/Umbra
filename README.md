@@ -7,6 +7,15 @@
 
 ---
 
+### 🌐 Live Intelligent Contract Deployment
+
+- **Contract Address:** [`0x6285B185277F10BeA8fa2c5b802B484a9E492eb8`](https://explorer-studio.genlayer.com/address/0x6285B185277F10BeA8fa2c5b802B484a9E492eb8)
+- **GenLayer Block Explorer:** [https://explorer-studio.genlayer.com/address/0x6285B185277F10BeA8fa2c5b802B484a9E492eb8](https://explorer-studio.genlayer.com/address/0x6285B185277F10BeA8fa2c5b802B484a9E492eb8)
+- **Network:** GenLayer Studionet (Chain ID `61999`)
+- **RPC Endpoint:** `https://studio.genlayer.com/api`
+
+---
+
 ## 🌟 Submission Update: Real GenLayer Integration & Deployment Flow
 
 This repository provides **100% real, direct on-chain communication** between the frontend, deployment scripts, and the deployed Intelligent Contract:
@@ -93,11 +102,21 @@ Executes a complete on-chain lifecycle test (Deploy -> Create Policy -> Buy Poli
 node scripts/test_deploy.cjs
 ```
 
-### 3. Python Unit Test Suite
-Runs the contract test suite covering policy creation, collateral locking, purchases, time windows, and equivalence principle mechanics:
+### 3. Python Unit Test Suite & Failure-Path Safeguards
+Runs the complete contract test suite (19 passing unit tests) covering policy lifecycle, AI equivalence consensus, and comprehensive failure-path safeguards:
 ```bash
-python -m pytest
+python -m pytest -v
 ```
+
+#### Verified Failure-Path Safeguards:
+1. **Unavailable Source Evidence Safeguard**:
+   - If the data source hint is unreachable, returns HTTP errors (404/500/503), or yields no valid telemetry, resolution rejects guessing and transitions to `resolution_inconclusive` without moving funds (`test_resolve_inconclusive_when_web_source_unavailable`, `test_resolve_inconclusive_when_source_returns_error_or_empty`, `test_resolve_inconclusive_when_hint_empty`).
+2. **Unavailable Model Evidence Safeguard**:
+   - If validators encounter an LLM failure, empty output, unparseable JSON, or non-boolean inconclusive verdict, resolution halts conclusively and marks status `resolution_inconclusive` without fund movement (`test_resolve_inconclusive_when_llm_unavailable`, `test_resolve_inconclusive_when_llm_returns_malformed_json`, `test_resolve_inconclusive_when_llm_returns_non_boolean_verdict`).
+3. **Transfer Failure Safeguards**:
+   - Failed payout, refund, or expiry transfers are never ignored. Any ledger transfer failure reverts the transaction immediately and prevents the contract from advancing to `resolved_triggered`, `resolved_not_triggered`, or `expired` (`test_payout_transfer_failure_does_not_advance_status`, `test_refund_transfer_failure_does_not_advance_status`, `test_expiry_transfer_failure_does_not_advance_status`, `test_expire_unsold_policy_reverts_if_transfer_fails`).
+4. **Resolution Retry Capability**:
+   - Inconclusive policies can be safely retried once external evidence or network access recovers, settling conclusively without locked funds (`test_resolve_inconclusive_can_be_retried_and_resolved_once_evidence_available`).
 
 ---
 

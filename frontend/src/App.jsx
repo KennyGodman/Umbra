@@ -214,7 +214,19 @@ export default function App() {
             <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-                <span>UMBRA Intelligent Contract: <code className="font-mono text-purple-700 dark:text-purple-300 font-semibold">{genlayerService.getContractAddress()}</code></span>
+                <span>
+                  UMBRA Intelligent Contract:{' '}
+                  <a
+                    href={genlayerService.getExplorerUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-purple-700 dark:text-purple-300 font-semibold hover:underline inline-flex items-center gap-1 group"
+                    title="View on GenLayer Explorer"
+                  >
+                    <code>{genlayerService.getContractAddress()}</code>
+                    <span className="text-[10px] opacity-70 group-hover:opacity-100">↗</span>
+                  </a>
+                </span>
               </div>
               <div className="flex items-center gap-4 text-slate-600 dark:text-purple-300/80">
                 <button onClick={() => setInDapp(false)} className="hover:text-slate-900 dark:hover:text-white transition-colors">

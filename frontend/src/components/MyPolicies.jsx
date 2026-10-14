@@ -106,7 +106,7 @@ export default function MyPolicies({
         <div className="space-y-4">
           {myPurchasedPolicies.map((policy, index) => {
             const timeInfo = getTimeRemaining(policy.coverage_end);
-            const isPurchased = policy.status === "purchased";
+            const isPurchased = policy.status === "purchased" || policy.status === "resolution_inconclusive";
             const canResolve = isPurchased && timeInfo.expired;
             const isCurrentlyResolving = resolvingId === policy.policy_id;
 
@@ -164,6 +164,12 @@ export default function MyPolicies({
                         <span className="px-3.5 py-1 rounded-full text-xs font-mono font-semibold bg-slate-100 dark:bg-[#1a0c2e] text-slate-600 dark:text-purple-300/80 border border-slate-200 dark:border-purple-800/50 flex items-center gap-1.5">
                           <XCircle className="w-3.5 h-3.5" />
                           Not Triggered (Collateral Returned)
+                        </span>
+                      )}
+                      {policy.status === "resolution_inconclusive" && (
+                        <span className="px-3.5 py-1 rounded-full text-xs font-mono font-semibold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700/60 flex items-center gap-1.5 shadow-sm">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          Resolution Inconclusive (Retry Available)
                         </span>
                       )}
                     </div>
@@ -249,7 +255,12 @@ export default function MyPolicies({
                   {isPurchased && (
                     <div className="mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-purple-900/40">
                       <div className="text-xs text-slate-500 dark:text-purple-300/80">
-                        {canResolve ? (
+                        {policy.status === "resolution_inconclusive" ? (
+                          <span className="text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            Previous resolution was inconclusive due to evidence unavailability. You can retry resolution now.
+                          </span>
+                        ) : canResolve ? (
                           <span className="text-purple-700 dark:text-purple-200 font-semibold flex items-center gap-1.5">
                             <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                             Coverage window has closed. Autonomous resolution is ready to execute.
@@ -280,7 +291,11 @@ export default function MyPolicies({
                         ) : (
                           <>
                             <Sparkles className="w-4 h-4 text-[#19062d]" />
-                            <span>Resolve Now (Live Consensus)</span>
+                            <span>
+                              {policy.status === "resolution_inconclusive"
+                                ? "Retry Resolution"
+                                : "Resolve Now (Live Consensus)"}
+                            </span>
                           </>
                         )}
                       </button>

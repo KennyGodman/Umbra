@@ -3,6 +3,7 @@
   "network": "GenLayer Studionet",
   "chain_id": 61999,
   "network_rpc": "https://studio.genlayer.com/api",
+  "explorer_url": "https://explorer-studio.genlayer.com/address/0x6285B185277F10BeA8fa2c5b802B484a9E492eb8",
   "deployed_at": 1791363836,
   "underwriter": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "seed_policies": [

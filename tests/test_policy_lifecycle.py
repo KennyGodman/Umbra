@@ -196,3 +196,25 @@ def test_expire_unsold_policy_returns_collateral_correctly(env, contract):
     env.warp(2500)
     with pytest.raises(ValueError, match="Policy is not open"):
         contract.expire_unsold_policy(pid2)
+
+
+def test_expire_unsold_policy_reverts_if_transfer_fails(env, contract):
+    underwriter = "0xUnderwriter11111111111111111111111111111111"
+    payout = 800
+    start = 2000
+    end = 3000
+
+    env.warp(1000)
+    env.prank(underwriter, value=payout)
+    pid = contract.create_policy("flight_delay", "BA456 cancel", "flightstats.com", u256(40), u256(payout), u256(start), u256(end))
+
+    env.warp(2100)
+    def failing_transfer(recipient, amount):
+        raise RuntimeError("Ledger rejected transfer")
+    gl.transfer = failing_transfer
+
+    with pytest.raises(Exception, match="Expiry collateral refund"):
+        contract.expire_unsold_policy(pid)
+
+    policy = contract.get_policy(pid)
+    assert policy.status == "open", "Policy status must not change if expiry transfer fails"

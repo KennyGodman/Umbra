@@ -25,6 +25,7 @@ class GenLayerService {
     this.networkName = deploymentData.network || "GenLayer Studionet";
     this.rpcUrl = deploymentData.network_rpc || studionet.rpcUrls.default.http[0];
     this.chainId = deploymentData.chain_id || studionet.id;
+    this.explorerUrl = deploymentData.explorer_url || `https://explorer-studio.genlayer.com/address/${this.contractAddress}`;
     this.isRealClient = true;
 
     this.connectedAccount = DEFAULT_BUYER;
@@ -54,6 +55,10 @@ class GenLayerService {
 
   getRpcUrl() {
     return this.rpcUrl;
+  }
+
+  getExplorerUrl() {
+    return this.explorerUrl;
   }
 
   getConnectedAccount() {
